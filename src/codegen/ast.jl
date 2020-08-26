@@ -3,7 +3,7 @@
 
 AST code generation context.
 """
-mutable struct ASTCtx
+mutable struct ASTCtx <: AbstractCtx
     ptr::Int
     help::Symbol
     version::Symbol
@@ -22,33 +22,26 @@ function read_arg(ctx::ASTCtx)
     return ex
 end
 
-"""
-    codegen(ctx, cmd)
+# """
+#     codegen(cmd)
 
-Generate target code according to given context `ctx` from a command object `cmd`.
-"""
-function codegen end
+# Generate Julia AST from given command object `cmd`. This will wrap
+# all the generated AST in a function `command_main`.
+# """
+# function codegen(cmd::AbstractCommand)
+#     defs = Dict{Symbol,Any}()
+#     defs[:name] = :command_main
+#     defs[:args] = [Expr(:kw, :(ARGS::Vector{String}), :ARGS)]
 
-"""
-    codegen(cmd)
-
-Generate Julia AST from given command object `cmd`. This will wrap
-all the generated AST in a function `command_main`.
-"""
-function codegen(cmd::AbstractCommand)
-    defs = Dict{Symbol,Any}()
-    defs[:name] = :command_main
-    defs[:args] = [Expr(:kw, :(ARGS::Vector{String}), :ARGS)]
-
-    ctx = ASTCtx()
-    defs[:body] = quote
-        # let Julia throw InterruptException on SIGINT
-        ccall(:jl_exit_on_sigint, Cvoid, (Cint,), 0)
-        $(codegen_scan_glob(ctx, cmd))
-        $(codegen(ctx, cmd))
-    end
-    return combinedef(defs)
-end
+#     ctx = ASTCtx()
+#     defs[:body] = quote
+#         # let Julia throw InterruptException on SIGINT
+#         ccall(:jl_exit_on_sigint, Cvoid, (Cint,), 0)
+#         $(codegen_scan_glob(ctx, cmd))
+#         $(codegen(ctx, cmd))
+#     end
+#     combinedef(defs)
+# end
 
 function codegen(ctx::ASTCtx, cmd::LeafCommand)
     return quote

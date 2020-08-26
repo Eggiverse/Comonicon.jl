@@ -269,6 +269,7 @@ function create_entry(m::Module, line::QuoteNode, kwargs...)
 end
 
 function precompile_or_exec(m::Module, entry)
+    @info "it is precompiling!"
     if m == Main && CACHE_FLAG[]
         return quote
             $create_cache($entry)

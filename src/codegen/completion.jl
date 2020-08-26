@@ -1,6 +1,6 @@
 const tab = " "^4
 
-struct ZSHCompletionCtx end
+struct ZSHCompletionCtx <: AbstractCtx end
 
 function codegen(ctx::ZSHCompletionCtx, cmd::EntryCommand)
     name = cmd_name(cmd)
