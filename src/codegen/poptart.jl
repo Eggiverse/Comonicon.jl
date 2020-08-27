@@ -147,9 +147,11 @@ function codegen_input(::PoptartCtx, input::Symbol, arg::Arg)
         label *= " *"
     end
     label *= "\n$(arg.doc.first)"
+
+    buf = arg.default ===  nothing ? "" : string(arg.default)
     quote
         push!(window.items, Label($label))
-        $input = InputText(label = $(arg.name), buf="")
+        $input = InputText(label = $(arg.name), buf=$buf)
         push!(window.items, $input)
     end
 end
@@ -164,9 +166,10 @@ function codegen_input(::PoptartCtx, input::Symbol, opt::Option)
         label *= " *"
     end
     label *= "\n$(opt.doc.first)"
+    buf = opt.arg.default ===  nothing ? "" : string(opt.arg.default)
     quote
         push!(window.items, Label($label))
-        $input = InputText(label = $(opt.name), buf="")
+        $input = InputText(label = $(opt.name), buf=$buf)
         push!(window.items, $input)
     end
 end
