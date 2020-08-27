@@ -51,6 +51,8 @@ end
 function codegen_body(ctx::PoptartCtx, cmd::LeafCommand)
     ret = Expr(:block)
     
+    push!(ret.args, code_gendescription(ctx, cmd))
+
     for args in (cmd.args, cmd.options, cmd.flags)
         expr = codegen_inputs(ctx, args)
         push!(ret.args, expr)
@@ -69,6 +71,10 @@ function codegen_body(ctx::PoptartCtx, cmd::LeafCommand)
 
     push!(ret.args, :(return 0))
     return ret
+end
+
+function code_gendescription(::PoptartCtx, cmd::LeafCommand)
+    :(push!(window.items, Label($(cmd.doc.first))))
 end
 
 function codegen_call(ctx::PoptartCtx, cmd::LeafCommand)
@@ -142,8 +148,8 @@ function codegen_input(::PoptartCtx, input::Symbol, arg::Arg)
     end
     label *= "\n$(arg.doc.first)"
     quote
-        $input = InputText(buf="")
         push!(window.items, Label($label))
+        $input = InputText(label = $(arg.name), buf="")
         push!(window.items, $input)
     end
 end
@@ -159,8 +165,8 @@ function codegen_input(::PoptartCtx, input::Symbol, opt::Option)
     end
     label *= "\n$(opt.doc.first)"
     quote
-        $input = InputText(buf="")
         push!(window.items, Label($label))
+        $input = InputText(label = $(opt.name), buf="")
         push!(window.items, $input)
     end
 end
@@ -170,8 +176,8 @@ function codegen_input(::PoptartCtx, input::Symbol, flag::Flag)
     label *= "\n$(flag.doc.first)"
 
     quote
-        $input = InputText(buf="false")
         push!(window.items, Label($label))
+        $input = InputText(label = $(flag.name), buf="false")
         push!(window.items, $input)
     end
 end
