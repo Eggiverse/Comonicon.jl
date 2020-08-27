@@ -108,7 +108,7 @@ function codegen_inputs(ctx::PoptartCtx, args)
     genexpr = Expr(:block)
     for arg in args
         expr, input = codegen_input(ctx, arg)
-        push!(genexpr.args, expr, :(push!(window.items, $input)))
+        push!(genexpr.args, expr)
     end
     return genexpr
 end
@@ -140,7 +140,12 @@ function codegen_input(::PoptartCtx, input::Symbol, arg::Arg)
     if arg.require
         label *= " *"
     end
-    :($input = InputText(label=$label, buf=""))
+    label *= "\n$(arg.doc.first)"
+    quote
+        $input = InputText(buf="")
+        push!(window.items, Label($label))
+        push!(window.items, $input)
+    end
 end
 
 function codegen_input(::PoptartCtx, input::Symbol, opt::Option)
@@ -152,11 +157,21 @@ function codegen_input(::PoptartCtx, input::Symbol, opt::Option)
     if opt.arg.require
         label *= " *"
     end
-    :($input = InputText(label=$label, buf=""))
+    label *= "\n$(opt.doc.first)"
+    quote
+        $input = InputText(buf="")
+        push!(window.items, Label($label))
+        push!(window.items, $input)
+    end
 end
 
 function codegen_input(::PoptartCtx, input::Symbol, flag::Flag)
     label = flag.name * "::Bool"
+    label *= "\n$(flag.doc.first)"
 
-    :($input = InputText(label=$label, buf="false"))
+    quote
+        $input = InputText(buf="false")
+        push!(window.items, Label($label))
+        push!(window.items, $input)
+    end
 end
