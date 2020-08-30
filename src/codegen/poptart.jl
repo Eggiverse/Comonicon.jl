@@ -1,4 +1,4 @@
-
+using .Types: CommandDoc
 """
     PoptartCtx
 
@@ -10,6 +10,7 @@ struct PoptartCtx <: AbstractCtx
     flag_inputs::Dict{Flag, Symbol}
     windows::Symbol
     app::Symbol
+    warning::Symbol
     help::Symbol
     version::Symbol
 end
@@ -19,6 +20,7 @@ PoptartCtx() = PoptartCtx(Dict{Arg, Symbol}(),
                           Dict{Flag, Symbol}(), 
                           gensym(:windows),
                           gensym(:app), 
+                          gensym(:warning), 
                           gensym(:help), 
                           gensym(:version))
 
@@ -113,6 +115,10 @@ function codegen_call(ctx::PoptartCtx, cmd::LeafCommand)
     return ex_call
 end
 
+function xwarn(ctx::PoptartCtx, message::AbstractString)
+    :($(ctx.warning).Label = $message)
+end
+
 function inputvalue(::PoptartCtx, arg::Arg, input::Symbol)
     if arg.type == Any
         value = :($input.buf)
@@ -153,7 +159,45 @@ function Base.push!(ctx::PoptartCtx, arg_input::Pair{Flag, Symbol})
     push!(ctx.flag_inputs, arg_input)
 end
 
-function codegen_input(ctx::PoptartCtx, input::Symbol, arg::Arg; window_index::Int=1)
+function process_default(arg::Arg)
+    process_default(arg.default)
+end
+
+function process_default(opt::Option)
+    process_default(opt.arg.default)
+end
+
+function process_default(::Nothing)
+    (buf="", tip="")
+end
+
+function process_default(value::Number)
+    (buf=string(value), tip="")
+end
+
+function process_default(value::Expr)
+    (buf="", tip="\nDefault value is $value")
+end
+
+function process_label(opt::Option)
+    process_label(opt.arg, opt.doc)
+end
+
+function process_label(arg::Arg)
+    process_label(arg, arg.doc)
+end
+
+function process_label(flag::Flag)
+    label = flag.name * "::Bool"
+    doc = flag.doc
+    arg_docstring = string(doc)
+    if arg_docstring != ""
+        label *= "\n" * arg_docstring
+    end
+    label
+end
+
+function process_label(arg::Arg, doc::CommandDoc)
     label = arg.name
     if arg.type != Any
         label *= "::" * string(arg.type)
@@ -161,9 +205,18 @@ function codegen_input(ctx::PoptartCtx, input::Symbol, arg::Arg; window_index::I
     if arg.require
         label *= " *"
     end
-    label *= "\n$(arg.doc.first)"
+    arg_docstring = string(doc)
+    if arg_docstring != ""
+        label *= "\n" * arg_docstring
+    end
+    label
+end
 
-    buf = arg.default ===  nothing ? "" : string(arg.default)
+function codegen_input(ctx::PoptartCtx, input::Symbol, arg::Arg; window_index::Int=1)
+    label = process_label(arg)
+
+    buf, tip = process_default(arg)
+    label *= tip
     quote
         push!($(ctx.windows)[$window_index].items, Poptart.Desktop.Label($label))
         $input = Poptart.Desktop.InputText(label = $(arg.name), buf=$buf)
@@ -172,16 +225,9 @@ function codegen_input(ctx::PoptartCtx, input::Symbol, arg::Arg; window_index::I
 end
 
 function codegen_input(ctx::PoptartCtx, input::Symbol, opt::Option; window_index::Int=1)
-    label = opt.name 
-    # Probabaly a bad idea to cat strings
-    if opt.arg.type != Any
-        label *= "::" * string(opt.arg.type)
-    end
-    if opt.arg.require
-        label *= " *"
-    end
-    label *= "\n$(opt.doc.first)"
-    buf = opt.arg.default ===  nothing ? "" : string(opt.arg.default)
+    label = process_label(opt)
+    buf, tip = process_default(opt)
+    label *= tip
     quote
         push!($(ctx.windows)[$window_index].items, Poptart.Desktop.Label($label))
         $input = Poptart.Desktop.InputText(label = $(opt.name), buf=$buf)
@@ -190,8 +236,7 @@ function codegen_input(ctx::PoptartCtx, input::Symbol, opt::Option; window_index
 end
 
 function codegen_input(ctx::PoptartCtx, input::Symbol, flag::Flag; window_index::Int=1)
-    label = flag.name * "::Bool"
-    label *= "\n$(flag.doc.first)"
+    label = process_label(flag)
 
     quote
         push!($(ctx.windows)[$window_index].items, Poptart.Desktop.Label($label))

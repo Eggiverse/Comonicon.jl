@@ -112,7 +112,7 @@ function parse_args(def)
 
     # (name, type, require)
     for each in def[:args]
-        push!(types.args, Expr(:tuple, to_argument(def, each)...))
+        push!(types.args, to_argument(def, each))
     end
     return types
 end
@@ -123,7 +123,7 @@ function parse_kwargs(def)
 
     # (name, type, isflag)
     for each in def[:kwargs]
-        push!(types.args, Expr(:tuple, to_option_or_flag(each)...))
+        push!(types.args, to_option_or_flag(each))
     end
     return types
 end
