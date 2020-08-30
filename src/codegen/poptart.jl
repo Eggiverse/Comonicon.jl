@@ -100,6 +100,19 @@ function codegen_description(ctx::PoptartCtx, cmd::LeafCommand; window_index::In
     :(push!($(ctx.windows)[$window_index].items, Poptart.Desktop.Label($(cmd.doc.first) * "\n ")))
 end
 
+function codegen_params(ctx::PoptartCtx, params::Symbol, cmd::LeafCommand)
+    hasparameters(cmd) || return
+    arg = gensym(:arg)
+    
+    return quote
+        $params = []
+        for (arg, input) in $ctx.arg_inputs
+            value = $(inputvalue(ctx, arg, input))
+            push!($params, value)
+        end
+    end
+end
+
 function codegen_call(ctx::PoptartCtx, cmd::LeafCommand)
     ex_call = Expr(:call, cmd.entry)
     
