@@ -78,6 +78,9 @@ function codegen_body(ctx::PoptartCtx, cmd::LeafCommand; window_index::Int=1)
         Poptart.Desktop.didClick($button_run) do event
             $(codegen_call(ctx, cmd))
         end
+        Poptart.Desktop.didClick($button_cancel) do event
+            exit(1)
+        end
     end
     push!(ret.args, button_expr)
 
@@ -86,7 +89,7 @@ function codegen_body(ctx::PoptartCtx, cmd::LeafCommand; window_index::Int=1)
 end
 
 function code_gendescription(ctx::PoptartCtx, cmd::LeafCommand; window_index::Int=1)
-    :(push!($(ctx.windows)[$window_index].items, Poptart.Desktop.Label($(cmd.doc.first))))
+    :(push!($(ctx.windows)[$window_index].items, Poptart.Desktop.Label($(cmd.doc.first) * "\n ")))
 end
 
 function codegen_call(ctx::PoptartCtx, cmd::LeafCommand)
