@@ -4,7 +4,6 @@ export install, build
 
 using Logging
 using PackageCompiler
-using Pkg
 using Pkg.TOML
 using Pkg.PlatformEngines
 using ..Comonicon
@@ -213,13 +212,10 @@ function install_script(mod::Module, configs::Dict)
         compile = Symbol(install_configs["compile"])
     end
 
-    env = create_environment(mod, name)
-
     shell_script = cmd_script(
         mod,
         shadow;
         sysimg = sysimg_path,
-        project = env,
         compile = compile,
         optimize = install_configs["optimize"],
     )
@@ -383,19 +379,6 @@ function osname()
 end
 
 """
-create a dedicated shared environment for the command
-"""
-function create_environment(mod::Module, name)
-    Pkg.activate(name; shared=true)
-    toml = Base.current_project(PATH.project(mod))
-    pj = Pkg.Types.read_project(toml)
-    Pkg.add(PackageSpec(;name=pj.name, version=pj.version, uuid=pj.uuid))
-    path = Base.active_project()
-    Pkg.activate()
-    return path
-end
-
-"""
     cmd_script(mod, shadow; kwargs...)
 
 Generates a shell script that can be use as the entry of
@@ -440,6 +423,7 @@ function cmd_script(
     end
 
     push!(script, "-O$optimize")
+    push!(script, "--startup-file=no")
     push!(script, "-- $shadow \$@")
 
     return join(script, " \\\n    ")
