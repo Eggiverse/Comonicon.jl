@@ -8,11 +8,19 @@ struct PoptartCtx <: AbstractCtx
     arg_inputs::Dict{Arg, Symbol}
     option_inputs::Dict{Option, Symbol}
     flag_inputs::Dict{Flag, Symbol}
+    windows::Symbol
+    app::Symbol
     help::Symbol
     version::Symbol
 end
 
-PoptartCtx() = PoptartCtx(Dict{Arg, Symbol}(), Dict{Option, Symbol}(), Dict{Flag, Symbol}(), gensym(:help), gensym(:version))
+PoptartCtx() = PoptartCtx(Dict{Arg, Symbol}(), 
+                          Dict{Option, Symbol}(),
+                          Dict{Flag, Symbol}(), 
+                          gensym(:windows),
+                          gensym(:app), 
+                          gensym(:help), 
+                          gensym(:version))
 
 """
     codegen(cmd)
@@ -22,21 +30,22 @@ all the generated AST in a function `command_main`.
 """
 function codegen(cmd::AbstractCommand)
     defs = Dict{Symbol,Any}()
-    defs[:name] = :command_main
+    defs[:name] = :poptart_main
     defs[:args] = []
 
     ctx = PoptartCtx()
     defs[:body] = quote
         $(codegen(ctx, cmd))
     end
+
     return quote
-        using Poptart.Desktop
-        window = Window(title=$(cmd.root.name))
-        app = Application(windows = [window])
+        import Poptart
+        $(ctx.windows) = [Poptart.Desktop.Window(title=$(cmd.root.name))]
+        $(ctx.app) = Poptart.Desktop.Application(windows=$(ctx.windows))
         $(combinedef(defs))
-        command_main()
-        Desktop.exit_on_esc() = true
-        Base.JLOptions().isinteractive==0 && wait(app.closenotify)
+        poptart_main()
+        Poptart.Desktop.exit_on_esc() = true
+        Base.JLOptions().isinteractive==0 && wait($(ctx.app).closenotify)
     end
 end
 
@@ -48,7 +57,7 @@ function codegen(ctx::PoptartCtx, cmd::EntryCommand)
     end
 end
 
-function codegen_body(ctx::PoptartCtx, cmd::LeafCommand)
+function codegen_body(ctx::PoptartCtx, cmd::LeafCommand; window_index::Int=1)
     ret = Expr(:block)
     
     push!(ret.args, code_gendescription(ctx, cmd))
@@ -58,12 +67,15 @@ function codegen_body(ctx::PoptartCtx, cmd::LeafCommand)
         push!(ret.args, expr)
     end
 
-    button_expr = quote
-        button_run = Button(title = "run")
-        button_cancel = Button(title = "cancel")
-        push!(window.items, button_run, button_cancel)
+    button_run = gensym(:button_run)
+    button_cancel = gensym(:button_cancel)
 
-        didClick(button_run) do event
+    button_expr = quote
+        $button_run = Poptart.Desktop.Button(title = "run")
+        $button_cancel = Poptart.Desktop.Button(title = "cancel")
+        push!($(ctx.windows)[$window_index].items, $button_run, $button_cancel)
+
+        Poptart.Desktop.didClick($button_run) do event
             $(codegen_call(ctx, cmd))
         end
     end
@@ -73,8 +85,8 @@ function codegen_body(ctx::PoptartCtx, cmd::LeafCommand)
     return ret
 end
 
-function code_gendescription(::PoptartCtx, cmd::LeafCommand)
-    :(push!(window.items, Label($(cmd.doc.first))))
+function code_gendescription(ctx::PoptartCtx, cmd::LeafCommand; window_index::Int=1)
+    :(push!($(ctx.windows)[$window_index].items, Poptart.Desktop.Label($(cmd.doc.first))))
 end
 
 function codegen_call(ctx::PoptartCtx, cmd::LeafCommand)
@@ -138,7 +150,7 @@ function Base.push!(ctx::PoptartCtx, arg_input::Pair{Flag, Symbol})
     push!(ctx.flag_inputs, arg_input)
 end
 
-function codegen_input(::PoptartCtx, input::Symbol, arg::Arg)
+function codegen_input(ctx::PoptartCtx, input::Symbol, arg::Arg; window_index::Int=1)
     label = arg.name
     if arg.type != Any
         label *= "::" * string(arg.type)
@@ -150,13 +162,13 @@ function codegen_input(::PoptartCtx, input::Symbol, arg::Arg)
 
     buf = arg.default ===  nothing ? "" : string(arg.default)
     quote
-        push!(window.items, Label($label))
-        $input = InputText(label = $(arg.name), buf=$buf)
-        push!(window.items, $input)
+        push!($(ctx.windows)[$window_index].items, Poptart.Desktop.Label($label))
+        $input = Poptart.Desktop.InputText(label = $(arg.name), buf=$buf)
+        push!($(ctx.windows)[$window_index].items, $input)
     end
 end
 
-function codegen_input(::PoptartCtx, input::Symbol, opt::Option)
+function codegen_input(ctx::PoptartCtx, input::Symbol, opt::Option; window_index::Int=1)
     label = opt.name 
     # Probabaly a bad idea to cat strings
     if opt.arg.type != Any
@@ -168,19 +180,19 @@ function codegen_input(::PoptartCtx, input::Symbol, opt::Option)
     label *= "\n$(opt.doc.first)"
     buf = opt.arg.default ===  nothing ? "" : string(opt.arg.default)
     quote
-        push!(window.items, Label($label))
-        $input = InputText(label = $(opt.name), buf=$buf)
-        push!(window.items, $input)
+        push!($(ctx.windows)[$window_index].items, Poptart.Desktop.Label($label))
+        $input = Poptart.Desktop.InputText(label = $(opt.name), buf=$buf)
+        push!($(ctx.windows)[$window_index].items, $input)
     end
 end
 
-function codegen_input(::PoptartCtx, input::Symbol, flag::Flag)
+function codegen_input(ctx::PoptartCtx, input::Symbol, flag::Flag; window_index::Int=1)
     label = flag.name * "::Bool"
     label *= "\n$(flag.doc.first)"
 
     quote
-        push!(window.items, Label($label))
-        $input = InputText(label = $(flag.name), buf="false")
-        push!(window.items, $input)
+        push!($(ctx.windows)[$window_index].items, Poptart.Desktop.Label($label))
+        $input = Poptart.Desktop.InputText(label = $(flag.name), buf="false")
+        push!($(ctx.windows)[$window_index].items, $input)
     end
 end
