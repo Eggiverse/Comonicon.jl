@@ -1,11 +1,12 @@
 using .Types: CommandDoc
+using DataStructures
 """
     PoptartCtx
 
 Poptart code generation context.
 """
 struct PoptartCtx <: AbstractCtx
-    arg_inputs::Dict{Arg, Symbol}
+    arg_inputs::OrderedDict{Arg, Symbol}
     option_inputs::Dict{Option, Symbol}
     flag_inputs::Dict{Flag, Symbol}
     windows::Symbol
@@ -113,7 +114,7 @@ function codegen_params(ctx::PoptartCtx, params::Symbol, kwparams::Symbol, cmd::
         $params = []
         $args = $(xget_args(ctx, ctx.arg_inputs))
         for $arg in $args
-            if $arg == ""
+            if $arg === ""
                 break
             end
             push!($params, $arg)
@@ -121,7 +122,7 @@ function codegen_params(ctx::PoptartCtx, params::Symbol, kwparams::Symbol, cmd::
         $kwparams = []
         $args = $(xget_kwargs(ctx, ctx.option_inputs))
         for $arg in $args
-            if $arg.second == ""
+            if $arg.second === ""
                 continue
             end
             push!($kwparams, $arg)
