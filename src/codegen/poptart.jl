@@ -72,6 +72,9 @@ function codegen_body(ctx::PoptartCtx, cmd::LeafCommand; window_index::Int=1)
     button_run = gensym(:button_run)
     button_cancel = gensym(:button_cancel)
 
+    params = gensym(:params)
+    kwparams = gensym(:kwparams)
+
     button_expr = quote
         $button_run = Poptart.Desktop.Button(title = "run")
         $button_cancel = Poptart.Desktop.Button(title = "cancel")
@@ -81,7 +84,8 @@ function codegen_body(ctx::PoptartCtx, cmd::LeafCommand; window_index::Int=1)
         Poptart.Desktop.didClick($button_run) do event
             $(ctx.warning).text = ""
             try
-                $(codegen_call(ctx, cmd))
+                $(codegen_params(ctx, params, kwparams, cmd))
+                $(codegen_call(ctx, params, kwparams, cmd))
             catch e
                 $(ctx.warning).text = string(e)
             end
@@ -100,17 +104,52 @@ function codegen_description(ctx::PoptartCtx, cmd::LeafCommand; window_index::In
     :(push!($(ctx.windows)[$window_index].items, Poptart.Desktop.Label($(cmd.doc.first) * "\n ")))
 end
 
-function codegen_params(ctx::PoptartCtx, params::Symbol, cmd::LeafCommand)
+function codegen_params(ctx::PoptartCtx, params::Symbol, kwparams::Symbol, cmd::LeafCommand)
     hasparameters(cmd) || return
+    args = gensym(:args)
     arg = gensym(:arg)
-    
-    return quote
+
+    ret = quote
         $params = []
-        for (arg, input) in $ctx.arg_inputs
-            value = $(inputvalue(ctx, arg, input))
-            push!($params, value)
+        $args = $(xget_args(ctx, ctx.arg_inputs))
+        for $arg in $args
+            if $arg == ""
+                break
+            end
+            push!($params, $arg)
+        end
+        $kwparams = []
+        $args = $(xget_kwargs(ctx, ctx.option_inputs))
+        for $arg in $args
+            if $arg.second == ""
+                continue
+            end
+            push!($kwparams, $arg)
+        end
+        $args = $(xget_kwargs(ctx, ctx.flag_inputs))
+        for $arg in $args
+            push!($kwparams, $arg)
         end
     end
+    ret
+end
+
+function xget_args(ctx::PoptartCtx, arg_inputs)
+    ret = Expr(:vect)
+    for (arg, input) in arg_inputs
+        value = inputvalue(ctx, arg, input)
+        push!(ret.args, value)
+    end
+    ret
+end
+
+function xget_kwargs(ctx::PoptartCtx, arg_inputs)
+    ret = :(Dict())
+    for (arg, input) in arg_inputs
+        value = inputvalue(ctx, arg, input)
+        push!(ret.args, :($(QuoteNode(cmd_sym(arg))) => $value))
+    end
+    ret
 end
 
 function codegen_call(ctx::PoptartCtx, cmd::LeafCommand)
@@ -134,9 +173,17 @@ function codegen_call(ctx::PoptartCtx, cmd::LeafCommand)
     return ex_call
 end
 
+function codegen_call(ctx::PoptartCtx, params::Symbol, kwparams::Symbol, cmd::LeafCommand)
+    ex_call = Expr(:call, cmd.entry)
+    
+    return :($(cmd.entry)($params...; $kwparams...))
+end
+
 function xwarn(ctx::PoptartCtx, message::AbstractString)
     :($(ctx.warning).Label = $message)
 end
+
+inputvalue(ctx::PoptartCtx, opt::Option, input::Symbol) = inputvalue(ctx, opt.arg, input)
 
 function inputvalue(::PoptartCtx, arg::Arg, input::Symbol)
     if arg.type == Any
@@ -145,6 +192,10 @@ function inputvalue(::PoptartCtx, arg::Arg, input::Symbol)
         value = :(parse($(arg.type), $input.buf))
     end
     value
+end
+
+function inputvalue(::PoptartCtx, flag::Flag, input::Symbol)
+    :(parse(Bool, $input.buf))
 end
 
 function Base.push!(ctx::PoptartCtx, arg_input::Pair{Arg, Symbol})
