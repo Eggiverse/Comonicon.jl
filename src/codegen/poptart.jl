@@ -41,14 +41,15 @@ function codegen(cmd::AbstractCommand)
         $(codegen(ctx, cmd))
     end
 
+    ret_app = gensym(:app)
+
     return quote
         import Poptart
-        $(ctx.windows) = [Poptart.Desktop.Window(title=$(cmd.root.name))]
-        $(ctx.app) = Poptart.Desktop.Application(windows=$(ctx.windows))
+
         $(combinedef(defs))
-        poptart_main()
+        $ret_app = poptart_main()
         Poptart.Desktop.exit_on_esc() = true
-        Base.JLOptions().isinteractive==0 && wait($(ctx.app).closenotify)
+        Base.JLOptions().isinteractive==0 && wait($ret_app.closenotify)
     end
 end
 
@@ -63,7 +64,7 @@ end
 function codegen_body(ctx::PoptartCtx, cmd::LeafCommand; window_index::Int=1)
     ret = Expr(:block)
     
-    push!(ret.args, codegen_description(ctx, cmd))
+    push!(ret.args, codegen_app(ctx, cmd), codegen_description(ctx, cmd))
 
     for args in (cmd.args, cmd.options, cmd.flags)
         expr = codegen_inputs(ctx, args)
@@ -97,8 +98,15 @@ function codegen_body(ctx::PoptartCtx, cmd::LeafCommand; window_index::Int=1)
     end
     push!(ret.args, button_expr)
 
-    push!(ret.args, :(return 0))
+    push!(ret.args, :(return $(ctx.app)))
     return ret
+end
+
+function codegen_app(ctx::PoptartCtx, cmd::LeafCommand)
+    quote
+        $(ctx.windows) = [Poptart.Desktop.Window(title=$(cmd.name))]
+        $(ctx.app) = Poptart.Desktop.Application(windows=$(ctx.windows))
+    end
 end
 
 function codegen_description(ctx::PoptartCtx, cmd::LeafCommand; window_index::Int=1)
