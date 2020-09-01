@@ -32,6 +32,7 @@ Generate Julia AST from given command object `cmd`. This will wrap
 all the generated AST in a function `command_main`.
 """
 function codegen(cmd::AbstractCommand)
+    println("generation")
     defs = Dict{Symbol,Any}()
     defs[:name] = :poptart_main
     defs[:args] = []
@@ -161,27 +162,6 @@ function xget_kwargs(ctx::PoptartCtx, arg_inputs)
     ret
 end
 
-function codegen_call(ctx::PoptartCtx, cmd::LeafCommand)
-    ex_call = Expr(:call, cmd.entry)
-    
-    for (arg, input) in ctx.arg_inputs
-        value = inputvalue(ctx, arg, input)
-        push!(ex_call.args, value)
-    end
-
-    for (opt, input) in ctx.option_inputs
-        value = inputvalue(ctx, opt.arg, input)
-        push!(ex_call.args, Expr(:kw, cmd_sym(opt), value))
-    end
-
-    for (flag, input) in ctx.flag_inputs
-        value = :(parse(Bool, $input.buf))
-        push!(ex_call.args, Expr(:kw, cmd_sym(flag), value))
-    end
-    
-    return ex_call
-end
-
 function codegen_call(ctx::PoptartCtx, params::Symbol, kwparams::Symbol, cmd::LeafCommand)
     ex_call = Expr(:call, cmd.entry)
     
@@ -203,8 +183,12 @@ function inputvalue(::PoptartCtx, arg::Arg, input::Symbol)
     value
 end
 
+# function inputvalue(::PoptartCtx, flag::Flag, input::Symbol)
+#     :(parse(Bool, $input.buf))
+# end
+
 function inputvalue(::PoptartCtx, flag::Flag, input::Symbol)
-    :(parse(Bool, $input.buf))
+    :($input.value)
 end
 
 function Base.push!(ctx::PoptartCtx, arg_input::Pair{Arg, Symbol})
@@ -312,13 +296,22 @@ end
 function codegen_input(ctx::PoptartCtx, input::Symbol, flag::Flag; window_index::Int=1)
     label = process_label(flag)
 
-    codegen_input(ctx, input; name=flag.name, label=label, buf="false", window_index=window_index)
+    # codegen_input(ctx, input; name=flag.name, label=label, buf="false", window_index=window_index)
+    codegen_checkbox(ctx, input; name=flag.name, label=label, value=false, window_index=window_index)
 end
 
 function codegen_input(ctx::PoptartCtx, input::Symbol; name::AbstractString, label::AbstractString, buf::AbstractString = "", window_index::Int = 1)
     quote
         push!($(ctx.windows)[$window_index].items, Poptart.Desktop.Label($label))
         $input = Poptart.Desktop.InputText(label = $name, buf=$buf)
+        push!($(ctx.windows)[$window_index].items, $input)
+    end
+end
+
+function codegen_checkbox(ctx::PoptartCtx, input::Symbol; name::AbstractString, label::AbstractString, value::Bool = false, window_index::Int = 1)
+    quote
+        push!($(ctx.windows)[$window_index].items, Poptart.Desktop.Label($label))
+        $input = Poptart.Desktop.Checkbox(label = $name, value=$value)
         push!($(ctx.windows)[$window_index].items, $input)
     end
 end
