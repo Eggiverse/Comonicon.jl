@@ -111,7 +111,7 @@ function codegen_app(ctx::PoptartCtx, cmd::LeafCommand)
 end
 
 function codegen_description(ctx::PoptartCtx, cmd::LeafCommand; window_index::Int=1)
-    :(push!($(ctx.windows)[$window_index].items, Poptart.Desktop.Label($(cmd.doc.first) * "\n ")))
+    :(push!($(ctx.windows)[$window_index].items, Poptart.Desktop.Label($(cmd.doc.first)), Poptart.Desktop.Separator()))
 end
 
 function codegen_params(ctx::PoptartCtx, params::Symbol, kwparams::Symbol, cmd::LeafCommand)
@@ -259,59 +259,65 @@ end
 """
 Generate inputs for `args`
 """
-function codegen_inputs(ctx::PoptartCtx, args)
+function codegen_inputs(ctx::PoptartCtx, args; window_index::Int=1)
     genexpr = Expr(:block)
+    group = gensym(:group)
+    push!(genexpr.args, quote
+        $group = Poptart.Desktop.Group(items=[Poptart.Desktop.NewLine()])
+        push!($(ctx.windows)[$window_index].items, $group)
+    end
+    )
     for arg in args
-        expr, input = codegen_input(ctx, arg)
+        expr, input = codegen_input(ctx, group, arg)
         push!(genexpr.args, expr)
     end
     return genexpr
 end
 
-function codegen_input(ctx::PoptartCtx, arg)
+function codegen_input(ctx::PoptartCtx, group::Symbol, arg)
     input_symbol = gensym(:input)
-    expr = codegen_input(ctx, input_symbol, arg)
+    expr = codegen_input(ctx, input_symbol, group::Symbol, arg)
     push!(ctx, arg=>input_symbol)
     return expr, input_symbol
 end
 
 
-function codegen_input(ctx::PoptartCtx, input::Symbol, arg::Arg; window_index::Int=1)
+function codegen_input(ctx::PoptartCtx, input::Symbol, group::Symbol, arg::Arg)
     label = process_label(arg)
 
     buf, tip = process_default(arg)
     label *= tip
 
-    codegen_input(ctx, input; name=arg.name, label=label, buf=buf, window_index=window_index)
+    codegen_input(ctx, input; name=arg.name, label=label, buf=buf, group=group)
 end
 
-function codegen_input(ctx::PoptartCtx, input::Symbol, opt::Option; window_index::Int=1)
+function codegen_input(ctx::PoptartCtx, input::Symbol, group::Symbol, opt::Option)
     label = process_label(opt)
     buf, tip = process_default(opt)
     label *= tip
 
-    codegen_input(ctx, input; name=opt.name, label=label, buf=buf, window_index=window_index)
+    codegen_input(ctx, input; name=opt.name, label=label, buf=buf, group=group)
 end
 
-function codegen_input(ctx::PoptartCtx, input::Symbol, flag::Flag; window_index::Int=1)
+function codegen_input(ctx::PoptartCtx, input::Symbol, group::Symbol, flag::Flag)
     label = process_label(flag)
 
     # codegen_input(ctx, input; name=flag.name, label=label, buf="false", window_index=window_index)
-    codegen_checkbox(ctx, input; name=flag.name, label=label, value=false, window_index=window_index)
+    codegen_checkbox(ctx, input; name=flag.name, label=label, value=false, group=group)
 end
 
-function codegen_input(ctx::PoptartCtx, input::Symbol; name::AbstractString, label::AbstractString, buf::AbstractString = "", window_index::Int = 1)
+function codegen_input(::PoptartCtx, input::Symbol; name::AbstractString, label::AbstractString, buf::AbstractString = "", group::Symbol)
     quote
-        push!($(ctx.windows)[$window_index].items, Poptart.Desktop.Label($label))
+        push!($group.items, Poptart.Desktop.Label($label))
         $input = Poptart.Desktop.InputText(label = $name, buf=$buf)
-        push!($(ctx.windows)[$window_index].items, $input)
+        push!($group.items, $input)
     end
 end
 
-function codegen_checkbox(ctx::PoptartCtx, input::Symbol; name::AbstractString, label::AbstractString, value::Bool = false, window_index::Int = 1)
+function codegen_checkbox(::PoptartCtx, input::Symbol; name::AbstractString, label::AbstractString, value::Bool = false, group::Symbol)
     quote
-        push!($(ctx.windows)[$window_index].items, Poptart.Desktop.Label($label))
+        push!($group.items, Poptart.Desktop.Label($label))
         $input = Poptart.Desktop.Checkbox(label = $name, value=$value)
-        push!($(ctx.windows)[$window_index].items, $input)
+        push!($group.items, $input)
     end
 end
