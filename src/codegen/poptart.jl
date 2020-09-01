@@ -121,7 +121,8 @@ function codegen_params(ctx::PoptartCtx, params::Symbol, kwparams::Symbol, cmd::
 
     ret = quote
         $params = []
-        $args = $(xget_args(ctx, ctx.arg_inputs))
+        $(xget_args(ctx, args, ctx.arg_inputs))
+
         for $arg in $args
             if $arg === ""
                 break
@@ -144,16 +145,56 @@ function codegen_params(ctx::PoptartCtx, params::Symbol, kwparams::Symbol, cmd::
     ret
 end
 
-function xget_args(ctx::PoptartCtx, arg_inputs)
-    ret = Expr(:vect)
+function xget_vararg(ctx::PoptartCtx, args::Symbol, inputgroup::Symbol)
+    input = gensym(:input)
+    value = gensym(:value)
+    quote
+        for $input in $inputgroup.items
+            $value = $input.buf
+            push!($args, $value)
+        end
+    end
+end
+
+function xget_args(ctx::PoptartCtx, args::Symbol, arg_inputs::AbstractDict)
+    ret = quote
+        $args = []
+    end
+    params = ret.args[2].args[2]
     for (arg, input) in arg_inputs
-        value = inputvalue(ctx, arg, input)
-        push!(ret.args, value)
+        if arg.vararg
+            push!(ret.args, xget_vararg(ctx, args, input))
+        else
+            value = inputvalue(ctx, arg, input)
+            push!(params.args, value)
+        end
+        # if arg.vararg
+        #     xget_vararg!(ctx, ret, arg, input)
+        # else
+        #     xget_arg!(ctx, ret, arg, input)
+        # end
     end
     ret
 end
 
-function xget_kwargs(ctx::PoptartCtx, arg_inputs)
+function xget_args(ctx::PoptartCtx, arg_inputs)
+    ret = Expr(:vect)
+    for (arg, input) in arg_inputs
+        if arg.vararg
+            continue
+        end
+        value = inputvalue(ctx, arg, input)
+        push!(ret.args, value)
+        # if arg.vararg
+        #     xget_vararg!(ctx, ret, arg, input)
+        # else
+        #     xget_arg!(ctx, ret, arg, input)
+        # end
+    end
+    ret
+end
+
+function xget_kwargs(ctx::PoptartCtx, arg_inputs::AbstractDict)
     ret = :(Dict())
     for (arg, input) in arg_inputs
         value = inputvalue(ctx, arg, input)
@@ -182,10 +223,6 @@ function inputvalue(::PoptartCtx, arg::Arg, input::Symbol)
     end
     value
 end
-
-# function inputvalue(::PoptartCtx, flag::Flag, input::Symbol)
-#     :(parse(Bool, $input.buf))
-# end
 
 function inputvalue(::PoptartCtx, flag::Flag, input::Symbol)
     :($input.value)
@@ -281,14 +318,43 @@ function codegen_control(ctx::PoptartCtx, group::Symbol, arg)
     return expr, input_symbol
 end
 
+function is_vararg(arg::Arg)
+    arg.vararg
+end
+
+function is_vararg(opt::Option)
+    opt.arg.vararg
+end
 
 function codegen_control(ctx::PoptartCtx, input::Symbol, group::Symbol, arg::Union{Arg, Option})
     label = process_label(arg)
 
     buf, tip = process_default(arg)
     label *= tip
+    if is_vararg(arg)
+        codegen_control_vararg(ctx, input; name=arg.name, label=label, group=group)
+    else
+        codegen_control(ctx, input, buf; name=arg.name, label=label, group=group)
+    end
+end
 
-    codegen_control(ctx, input, buf; name=arg.name, label=label, group=group)
+function codegen_control_vararg(ctx::PoptartCtx, inputgroup::Symbol; name::AbstractString, label::AbstractString, group::Symbol)
+    varaddbutton = gensym(:varaddbutton)
+    inputcount = gensym(:inputcount)
+    quote
+        $varaddbutton = Poptart.Desktop.Button(title="+")
+        $inputgroup = Poptart.Desktop.Group(items=[])
+        $inputcount = Ref(0)
+        push!($group.items, Poptart.Desktop.Label($label),  Poptart.Desktop.SameLine(), $varaddbutton, $inputgroup)
+        Poptart.Desktop.didClick($varaddbutton) do event
+            try
+                $inputcount[] += 1
+                push!($inputgroup.items, Poptart.Desktop.InputText(label=string($inputcount[]), buf=""))
+            catch e 
+                @error "error from addbutton" e
+            end
+        end
+    end
 end
 
 function codegen_control(ctx::PoptartCtx, input::Symbol, group::Symbol, flag::Flag)
