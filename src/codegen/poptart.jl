@@ -82,7 +82,7 @@ function codegen_body(ctx::PoptartCtx, cmd::LeafCommand; window_index::Int=1)
         $button_run = Poptart.Desktop.Button(title = "run")
         $button_cancel = Poptart.Desktop.Button(title = "cancel")
         $(ctx.warning) = Poptart.Desktop.Label("")
-        push!($(ctx.windows)[$window_index].items, $button_run, $button_cancel, $(ctx.warning))
+        push!($(ctx.windows)[$window_index].items, $button_run, Poptart.Desktop.SameLine(), $button_cancel, $(ctx.warning))
 
         Poptart.Desktop.didClick($button_run) do event
             $(ctx.warning).text = ""
@@ -94,7 +94,7 @@ function codegen_body(ctx::PoptartCtx, cmd::LeafCommand; window_index::Int=1)
             end
         end
         Poptart.Desktop.didClick($button_cancel) do event
-            exit(1)
+            Poptart.Desktop.pause($(ctx.app))
         end
     end
     push!(ret.args, button_expr)
