@@ -9,7 +9,6 @@ struct PoptartCtx <: AbstractCtx
     arg_inputs::OrderedDict{Arg, Symbol}
     option_inputs::Dict{Option, Symbol}
     flag_inputs::Dict{Flag, Symbol}
-    # windows::Symbol
     app::Symbol
     warning::Symbol
     help::Symbol
@@ -71,10 +70,10 @@ end
 function codegen_body(ctx::PoptartCtx, cmd::LeafCommand; window_index::Int=1)
     ret = Expr(:block)
     
-    push!(ret.args, codegen_window(ctx, cmd), codegen_description(ctx, cmd))
+    push!(ret.args, codegen_window(ctx, cmd), codegen_description(ctx, cmd; window_index=window_index))
 
     for args in (cmd.args, cmd.options, cmd.flags)
-        expr = codegen_controls(ctx, args)
+        expr = codegen_controls(ctx, args; window_index=window_index)
         push!(ret.args, expr)
     end
 
@@ -105,7 +104,6 @@ function codegen_body(ctx::PoptartCtx, cmd::LeafCommand; window_index::Int=1)
     end
     push!(ret.args, button_expr)
 
-    # push!(ret.args, :(return $(ctx.app)))
     return ret
 end
 
@@ -114,10 +112,10 @@ function codegen_body(ctx::PoptartCtx, cmd::NodeCommand)
     subcmd = gensym(:subcmd)
     ret = Expr(:block)
 
-    for subcmd in cmd.subcmds
-        push!(ret.args, codegen_body(ctx, subcmd))
+    for (i, subcmd) in enumerate(cmd.subcmds)
+        push!(ret.args, codegen_body(ctx, subcmd; window_index=i))
     end
-    
+
     ret
 end
 
