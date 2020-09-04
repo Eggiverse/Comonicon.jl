@@ -26,4 +26,4 @@ end
 
 end
 
-PkgCmd.command_main()
+PkgCmd.poptart_main()

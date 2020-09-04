@@ -9,7 +9,7 @@ struct PoptartCtx <: AbstractCtx
     arg_inputs::OrderedDict{Arg, Symbol}
     option_inputs::Dict{Option, Symbol}
     flag_inputs::Dict{Flag, Symbol}
-    windows::Symbol
+    # windows::Symbol
     app::Symbol
     warning::Symbol
     help::Symbol
@@ -19,7 +19,7 @@ end
 PoptartCtx() = PoptartCtx(Dict{Arg, Symbol}(), 
                           Dict{Option, Symbol}(),
                           Dict{Flag, Symbol}(), 
-                          gensym(:windows),
+                        #   gensym(:windows),
                           gensym(:app), 
                           gensym(:warning), 
                           gensym(:help), 
@@ -58,14 +58,20 @@ function codegen(ctx::PoptartCtx, cmd::EntryCommand)
     quote
         # $(codegen_help(ctx, cmd.root, xprint_help(cmd)))
         # $(codegen_version(ctx, cmd.root, xprint_version(cmd)))
+        $(codegen_app(ctx))
         $(codegen_body(ctx, cmd.root))
+        return $(ctx.app)
     end
+end
+
+function xapp_window(ctx::PoptartCtx, window_index::Int=1)
+    :($(ctx.app).windows[$window_index])
 end
 
 function codegen_body(ctx::PoptartCtx, cmd::LeafCommand; window_index::Int=1)
     ret = Expr(:block)
     
-    push!(ret.args, codegen_app(ctx, cmd), codegen_description(ctx, cmd))
+    push!(ret.args, codegen_window(ctx, cmd), codegen_description(ctx, cmd))
 
     for args in (cmd.args, cmd.options, cmd.flags)
         expr = codegen_controls(ctx, args)
@@ -82,7 +88,7 @@ function codegen_body(ctx::PoptartCtx, cmd::LeafCommand; window_index::Int=1)
         $button_run = Poptart.Desktop.Button(title = "run")
         $button_cancel = Poptart.Desktop.Button(title = "cancel")
         $(ctx.warning) = Poptart.Desktop.Label("")
-        push!($(ctx.windows)[$window_index].items, $button_run, Poptart.Desktop.SameLine(), $button_cancel, $(ctx.warning))
+        push!($(xapp_window(ctx, window_index)).items, $button_run, Poptart.Desktop.SameLine(), $button_cancel, $(ctx.warning))
 
         Poptart.Desktop.didClick($button_run) do event
             $(ctx.warning).text = ""
@@ -99,19 +105,36 @@ function codegen_body(ctx::PoptartCtx, cmd::LeafCommand; window_index::Int=1)
     end
     push!(ret.args, button_expr)
 
-    push!(ret.args, :(return $(ctx.app)))
+    # push!(ret.args, :(return $(ctx.app)))
     return ret
 end
 
-function codegen_app(ctx::PoptartCtx, cmd::LeafCommand)
+function codegen_body(ctx::PoptartCtx, cmd::NodeCommand)
+    # println(cmd.subcmds)
+    subcmd = gensym(:subcmd)
+    ret = Expr(:block)
+
+    for subcmd in cmd.subcmds
+        push!(ret.args, codegen_body(ctx, subcmd))
+    end
+    
+    ret
+end
+
+function codegen_app(ctx::PoptartCtx)
     quote
-        $(ctx.windows) = [Poptart.Desktop.Window(title=$(cmd.name))]
-        $(ctx.app) = Poptart.Desktop.Application(windows=$(ctx.windows))
+        $(ctx.app) = Poptart.Desktop.Application(windows=[])
+    end
+end
+
+function codegen_window(ctx::PoptartCtx, cmd::LeafCommand)
+    quote
+        push!($(ctx.app).windows, Poptart.Desktop.Window(title=$(cmd.name)))
     end
 end
 
 function codegen_description(ctx::PoptartCtx, cmd::LeafCommand; window_index::Int=1)
-    :(push!($(ctx.windows)[$window_index].items, Poptart.Desktop.Label($(cmd.doc.first)), Poptart.Desktop.Separator()))
+    :(push!($(xapp_window(ctx, window_index)).items, Poptart.Desktop.Label($(cmd.doc.first)), Poptart.Desktop.Separator()))
 end
 
 function codegen_params(ctx::PoptartCtx, params::Symbol, kwparams::Symbol, cmd::LeafCommand)
@@ -301,7 +324,7 @@ function codegen_controls(ctx::PoptartCtx, args; window_index::Int=1)
     group = gensym(:group)
     push!(genexpr.args, quote
         $group = Poptart.Desktop.Group(items=[Poptart.Desktop.NewLine()])
-        push!($(ctx.windows)[$window_index].items, $group)
+        push!($(xapp_window(ctx, window_index)).items, $group)
     end
     )
     for arg in args

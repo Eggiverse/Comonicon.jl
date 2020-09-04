@@ -278,7 +278,7 @@ function precompile_or_exec(m::Module, entry)
     elseif m == Main
         return quote
             $(xcall(m, :eval, xcall(CodeGen, :codegen, entry)))
-            command_main()
+            poptart_main()
         end
     else
         quote
@@ -315,7 +315,7 @@ function precompile_or_exec(m::Module, entry)
             """
             comonicon_install_path() = $(GlobalRef(Comonicon.BuildTools, :install_env_path))()
 
-            precompile(Tuple{typeof($m.command_main),Array{String,1}})
+            precompile(Tuple{typeof($m.poptart_main),Array{String,1}})
         end
     end
 end
