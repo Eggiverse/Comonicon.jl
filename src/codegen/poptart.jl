@@ -1,11 +1,12 @@
 using .Types: CommandDoc
 using DataStructures
+
 """
     PoptartCtx
 
 Poptart code generation context.
 """
-struct PoptartCtx <: AbstractCtx
+mutable struct PoptartCtx <: AbstractCtx
     arg_inputs::OrderedDict{Arg, Symbol}
     option_inputs::Dict{Option, Symbol}
     flag_inputs::Dict{Flag, Symbol}
@@ -15,7 +16,7 @@ struct PoptartCtx <: AbstractCtx
     version::Symbol
 end
 
-PoptartCtx() = PoptartCtx(Dict{Arg, Symbol}(), 
+PoptartCtx() = PoptartCtx(OrderedDict{Arg, Symbol}(), 
                           Dict{Option, Symbol}(),
                           Dict{Flag, Symbol}(), 
                         #   gensym(:windows),
@@ -23,6 +24,13 @@ PoptartCtx() = PoptartCtx(Dict{Arg, Symbol}(),
                           gensym(:warning), 
                           gensym(:help), 
                           gensym(:version))
+
+function empty_inputs!(ctx::PoptartCtx)
+    ctx.arg_inputs = OrderedDict{Arg, Symbol}()
+    ctx.option_inputs = Dict{Option, Symbol}()
+    ctx.flag_inputs = Dict{Flag, Symbol}()
+    ctx
+end
 
 """
     codegen(cmd)
@@ -114,6 +122,7 @@ function codegen_body(ctx::PoptartCtx, cmd::NodeCommand)
 
     for (i, subcmd) in enumerate(cmd.subcmds)
         push!(ret.args, codegen_body(ctx, subcmd; window_index=i))
+        empty_inputs!(ctx)
     end
 
     ret
