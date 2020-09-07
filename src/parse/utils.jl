@@ -125,7 +125,7 @@ end
 
 Create cache for given command `cmd` at file location `file`.
 """
-function create_cache(cmd, file = Base.PROGRAM_FILE)
+function create_cache(cmd, file = Base.PROGRAM_FILE, mime = MIME"comonicon/cli"())
     isempty(file) && return
     dir = cachedir(file)
     if !ispath(dir)
@@ -133,7 +133,9 @@ function create_cache(cmd, file = Base.PROGRAM_FILE)
     end
 
     cache_file, crc = cachefile(file)
-    write(cache_file, cmd)
+    open(cache_file, "w") do f
+        show(f, MIME"comonicon/cli"(), cmd)
+    end
     write(crc, string(checksum(file), base = 16))
     return
 end
