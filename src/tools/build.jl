@@ -16,6 +16,7 @@ using ..Comonicon.Tools
 const COMONICON_URL = "https://github.com/Roger-luo/Comonicon.jl"
 # Comonicon.toml
 # name = "ion"
+# target = "CLI"
 
 # [install]
 # bin = "~/.julia/bin"
@@ -81,6 +82,10 @@ function read_configs(mod; kwargs...)
             configs["name"] = v
         end
 
+        if k == :target
+            configs["target"] = v
+        end
+
         if k in [:bin, :completion, :quiet, :compile, :optimize]
             install_configs = get!(configs, "install", Dict{String,Any}())
             install_configs[string(k)] = v
@@ -122,6 +127,10 @@ function merge_defaults(mod, configs)
     configs["install"] = merge(DEFAULT_INSTALL_CONFIG, configs["install"])
     if !haskey(configs, "name")
         configs["name"] = Parse.default_name(mod)
+    end
+
+    if !haskey(configs, "target")
+        configs["taget"] = "CLI"
     end
     return configs
 end
